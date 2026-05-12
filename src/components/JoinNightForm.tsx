@@ -427,7 +427,7 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
   }
 
   function setRangeMin(minPlayTime: number) {
-    const maxPlayTime = Math.max(minPlayTime, game.maxPlayTime ?? minPlayTime);
+    const maxPlayTime = game.maxPlayTime ?? minPlayTime;
     onChange({
       minPlayTime,
       maxPlayTime,
@@ -436,10 +436,22 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
   }
 
   function setRangeMax(maxPlayTime: number) {
-    const minPlayTime = Math.min(game.minPlayTime ?? maxPlayTime, maxPlayTime);
+    const minPlayTime = game.minPlayTime ?? maxPlayTime;
     onChange({
       minPlayTime,
       maxPlayTime,
+      playingTime: Math.round((minPlayTime + maxPlayTime) / 2),
+    });
+  }
+
+  function normalizeRange() {
+    const minPlayTime = game.minPlayTime ?? game.playingTime;
+    const maxPlayTime = game.maxPlayTime ?? game.playingTime;
+    if (maxPlayTime >= minPlayTime) return;
+
+    onChange({
+      minPlayTime: maxPlayTime,
+      maxPlayTime: minPlayTime,
       playingTime: Math.round((minPlayTime + maxPlayTime) / 2),
     });
   }
@@ -466,11 +478,13 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
               label="Minimum minutes"
               value={game.minPlayTime ?? game.playingTime}
               onChange={setRangeMin}
+              onBlur={normalizeRange}
             />
             <NumberField
               label="Maximum minutes"
               value={game.maxPlayTime ?? game.playingTime}
               onChange={setRangeMax}
+              onBlur={normalizeRange}
             />
           </div>
         ) : (
@@ -481,6 +495,11 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
           />
         )}
       </div>
+      {game.playTimeMode === "range" && (game.maxPlayTime ?? game.playingTime) < (game.minPlayTime ?? game.playingTime) ? (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+          The range will be reordered when you leave the field.
+        </p>
+      ) : null}
       <p className="text-xs font-medium text-stone-600">
         Shown as {formatPlayTime(game)}. Recommendation estimate: {formatMinutes(estimatePlayTime(game))}.
       </p>
@@ -488,7 +507,17 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
   );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function NumberField({
+  label,
+  value,
+  onChange,
+  onBlur,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  onBlur?: () => void;
+}) {
   return (
     <label className="grid gap-2 text-sm font-medium text-stone-800">
       {label}
@@ -497,6 +526,7 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
         min={1}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
+        onBlur={onBlur}
         className="h-11 rounded-md border border-stone-300 px-3 text-base outline-none focus:border-emerald-600"
       />
     </label>
