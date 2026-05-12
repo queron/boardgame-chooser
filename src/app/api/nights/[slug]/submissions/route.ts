@@ -6,13 +6,16 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   const { slug } = await context.params;
   const parsed = submissionSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Check your games and preferences, then try again." }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Check your games and preferences, then try again." },
+      { status: 400 },
+    );
   }
 
-  const night = await addSubmission(slug, parsed.data);
-  if (!night) {
+  const result = await addSubmission(slug, parsed.data);
+  if (!result) {
     return NextResponse.json({ error: "Night not found." }, { status: 404 });
   }
 
-  return NextResponse.json({ night });
+  return NextResponse.json(result);
 }

@@ -67,6 +67,7 @@ export async function saveNight(night: GameNightRecord) {
 export async function addSubmission(
   slug: string,
   input: {
+    participantId?: string;
     displayName: string;
     games: Omit<GameCandidate, "id" | "submittedBy">[];
     preference: Omit<PreferenceSubmission, "participantId">;
@@ -75,7 +76,13 @@ export async function addSubmission(
   const night = await getNight(slug);
   if (!night) return null;
 
-  const participantId = crypto.randomUUID();
+  const normalizedDisplayName = input.displayName.trim().toLocaleLowerCase();
+  const existingParticipant = night.participants.find(
+    (participant) =>
+      participant.id === input.participantId ||
+      participant.displayName.trim().toLocaleLowerCase() === normalizedDisplayName,
+  );
+  const participantId = existingParticipant?.id ?? crypto.randomUUID();
   const submittedAt = new Date().toISOString();
   const participant = {
     id: participantId,
@@ -84,7 +91,10 @@ export async function addSubmission(
     submittedAt,
   };
 
-  night.participants = [...night.participants, participant];
+  night.participants = existingParticipant
+    ? night.participants.map((current) => (current.id === participantId ? participant : current))
+    : [...night.participants, participant];
+  night.games = night.games.filter((game) => game.submittedBy !== participantId);
   night.games = [
     ...night.games,
     ...input.games.map((game) => ({
@@ -95,9 +105,13 @@ export async function addSubmission(
       mechanics: game.mechanics ?? [],
     })),
   ];
-  night.preferences = [...night.preferences, { ...input.preference, participantId }];
+  night.preferences = [
+    ...night.preferences.filter((preference) => preference.participantId !== participantId),
+    { ...input.preference, participantId },
+  ];
 
-  return saveNight(night);
+  const savedNight = await saveNight(night);
+  return { night: savedNight, participant };
 }
 
 async function uniqueSlug() {

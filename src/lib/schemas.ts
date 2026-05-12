@@ -19,16 +19,20 @@ export const gameCandidateInputSchema = z.object({
   mechanics: z.array(z.string()).default([]),
   imageUrl: z.string().url().optional(),
   manualOverrides: z.boolean().default(false),
+}).refine((game) => game.maxPlayers >= game.minPlayers, {
+  message: "Maximum players must be greater than or equal to minimum players.",
+  path: ["maxPlayers"],
 });
 
 export const submissionSchema = z.object({
+  participantId: z.string().uuid().optional(),
   displayName: z.string().trim().min(1).max(60),
   games: z.array(gameCandidateInputSchema).min(1).max(5),
   preference: z.object({
     challenge: z.number().int().min(1).max(5),
     interaction: z.number().int().min(1).max(5),
     competition: z.enum(["competitive", "cooperative", "either"]),
-    themes: z.array(z.string()).max(6),
+    themes: z.array(z.string()).max(10),
     tones: z.array(z.string()).max(6),
     maxPlayTime: z.number().int().min(30).max(360),
   }),
