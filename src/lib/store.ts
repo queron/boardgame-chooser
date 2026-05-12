@@ -11,6 +11,10 @@ function supabaseConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+function productionRequiresSupabase() {
+  return process.env.NODE_ENV === "production" && !supabaseConfigured();
+}
+
 function supabase() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false },
@@ -42,6 +46,10 @@ export async function getNight(slug: string) {
     return data.payload as GameNightRecord;
   }
 
+  if (productionRequiresSupabase()) {
+    return null;
+  }
+
   const nights = await readLocalNights();
   return nights[slug] ?? null;
 }
@@ -55,6 +63,12 @@ export async function saveNight(night: GameNightRecord) {
       .upsert({ slug: updatedNight.slug, payload: updatedNight, updated_at: updatedNight.updatedAt });
     if (error) throw new Error(error.message);
     return updatedNight;
+  }
+
+  if (productionRequiresSupabase()) {
+    throw new Error(
+      "Production persistence is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel and run supabase/schema.sql.",
+    );
   }
 
   const nights = await readLocalNights();

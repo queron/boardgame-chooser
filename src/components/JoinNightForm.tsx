@@ -262,12 +262,10 @@ export function JoinNightForm({ slug }: { slug: string }) {
                 Maximum players must be greater than or equal to minimum players.
               </p>
             ) : null}
-            <details
-              open={!game.bggId}
-              className="rounded-md border border-stone-200 bg-stone-50 p-3"
-            >
+            <details className="rounded-md border border-stone-200 bg-stone-50 p-3">
               <summary className="cursor-pointer text-sm font-semibold text-stone-900">
                 Recommendation details
+                <span className="ml-2 font-medium text-stone-500">Optional</span>
               </summary>
               <div className="mt-4 grid gap-5">
                 <Range

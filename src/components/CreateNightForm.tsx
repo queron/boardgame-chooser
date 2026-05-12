@@ -20,10 +20,16 @@ export function CreateNightForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, eventDate }),
     });
-    const payload = await response.json();
+    const payload = await parseJsonResponse(response);
 
     if (!response.ok) {
       setError(payload.error ?? "Could not create a game night.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!payload.night?.slug) {
+      setError("The server created an unreadable game night response.");
       setIsSubmitting(false);
       return;
     }
@@ -60,4 +66,15 @@ export function CreateNightForm() {
       </button>
     </form>
   );
+}
+
+async function parseJsonResponse(response: Response): Promise<{ error?: string; night?: { slug: string } }> {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: "The server returned an unreadable response. Check the deployment logs." };
+  }
 }
