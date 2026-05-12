@@ -35,15 +35,20 @@ export async function getBggGame(id: number): Promise<BggGameDetails | null> {
   const links = asArray(item.link);
   const pollAverage = item.statistics?.ratings?.averageweight?.value;
 
+  const minPlayTime = numberFromNode(item.minplaytime);
+  const maxPlayTime = numberFromNode(item.maxplaytime);
+  const playingTime = numberFromNode(item.playingtime) ?? maxPlayTime ?? minPlayTime ?? 90;
+
   return {
     bggId: Number(item.id),
     title: valueFromNode(primaryName(item.name)) || "Untitled game",
     year: numberFromNode(item.yearpublished),
     minPlayers: numberFromNode(item.minplayers) ?? 1,
     maxPlayers: numberFromNode(item.maxplayers) ?? 99,
-    playingTime: numberFromNode(item.playingtime) ?? numberFromNode(item.maxplaytime) ?? 90,
-    minPlayTime: numberFromNode(item.minplaytime),
-    maxPlayTime: numberFromNode(item.maxplaytime),
+    playTimeMode: minPlayTime && maxPlayTime && minPlayTime !== maxPlayTime ? "range" : "fixed",
+    playingTime,
+    minPlayTime,
+    maxPlayTime,
     weight: pollAverage ? Number(Number(pollAverage).toFixed(2)) : undefined,
     categories: links.filter((link) => link.type === "boardgamecategory").map((link) => link.value),
     mechanics: links.filter((link) => link.type === "boardgamemechanic").map((link) => link.value),

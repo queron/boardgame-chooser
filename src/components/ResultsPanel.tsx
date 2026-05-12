@@ -1,4 +1,5 @@
 import type { Recommendation } from "@/lib/types";
+import { formatPlayTime } from "@/lib/playtime";
 
 export function ResultsPanel({ recommendation }: { recommendation: Recommendation }) {
   const hasResults = recommendation.rankedGames.length > 0;
@@ -40,7 +41,7 @@ export function ResultsPanel({ recommendation }: { recommendation: Recommendatio
                   </span>
                 </div>
                 <p className="mt-2 text-sm text-stone-600">
-                  {ranked.game.minPlayers}-{ranked.game.maxPlayers} players · {ranked.game.playingTime} min
+                  {ranked.game.minPlayers}-{ranked.game.maxPlayers} players · {formatPlayTime(ranked.game)}
                   {ranked.game.weight ? ` · weight ${ranked.game.weight}` : ""}
                 </p>
                 <ul className="mt-3 grid gap-1 text-sm text-stone-700">

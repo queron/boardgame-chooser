@@ -5,6 +5,7 @@ import type {
   PreferenceSubmission,
   Recommendation,
 } from "./types";
+import { estimatePlayTime } from "./playtime";
 
 const THEME_KEYWORDS: Record<string, string[]> = {
   adventure: ["adventure", "exploration", "maze", "travel"],
@@ -65,7 +66,7 @@ export function recommendGames(night: GameNightRecord): Recommendation {
 
   const rankedGames = night.games
     .filter((game) => playerCount === 0 || supportsPlayerCount(game, playerCount))
-    .map((game) => scoreGame(game, averages, preferences))
+    .map((game) => scoreGame(game, averages, preferences, playerCount))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
@@ -73,7 +74,7 @@ export function recommendGames(night: GameNightRecord): Recommendation {
     playerCount,
     rankedGames,
     exclusions,
-    suggestedOrder: buildSuggestedOrder(rankedGames.map((ranked) => ranked.game)),
+    suggestedOrder: buildSuggestedOrder(rankedGames.map((ranked) => ranked.game), playerCount),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -119,17 +120,18 @@ function scoreGame(
   game: GameCandidate,
   averages: ReturnType<typeof summarizePreferences>,
   preferences: PreferenceSubmission[],
+  playerCount: number,
 ) {
   const tagText = [...game.categories, ...game.mechanics, game.title].join(" ").toLowerCase();
   const targetWeight = 1 + averages.challenge * 0.75;
   const scoreBreakdown = {
     playerFit: 20,
-    timeFit: clamp(25 - Math.max(0, game.playingTime - averages.maxPlayTime) * 0.35, 0, 25),
+    timeFit: clamp(25 - Math.max(0, estimatePlayTime(game, playerCount) - averages.maxPlayTime) * 0.35, 0, 25),
     challengeFit: clamp(20 - Math.abs((game.weight ?? targetWeight) - targetWeight) * 6, 0, 20),
     interactionFit: scoreInteraction(tagText, averages.interaction),
     competitionFit: scoreCompetition(tagText, averages.competition),
     themeFit: scoreThemes(tagText, averages.themes),
-    toneFit: scoreTones(game, tagText, averages.tones),
+    toneFit: scoreTones(game, tagText, averages.tones, playerCount),
   };
 
   const score = Math.round(Object.values(scoreBreakdown).reduce((sum, value) => sum + value, 0));
@@ -161,10 +163,10 @@ function scoreThemes(tagText: string, themes: string[]) {
   return clamp(4 + hits.length * 5, 0, 14);
 }
 
-function scoreTones(game: GameCandidate, tagText: string, tones: string[]) {
+function scoreTones(game: GameCandidate, tagText: string, tones: string[], playerCount: number) {
   if (tones.length === 0) return 8;
   let score = 3;
-  if (tones.includes("casual") && game.playingTime <= 90 && (game.weight ?? 3) <= 2.8) score += 4;
+  if (tones.includes("casual") && estimatePlayTime(game, playerCount) <= 90 && (game.weight ?? 3) <= 2.8) score += 4;
   if (tones.includes("banter") && scoreInteraction(tagText, 5) > 8) score += 4;
   if (tones.includes("crunchy") && (game.weight ?? 0) >= 3.2) score += 4;
   if (tones.includes("cinematic") && (tagText.includes("adventure") || tagText.includes("thematic"))) score += 4;
@@ -188,19 +190,19 @@ function buildReasons(
   return reasons.slice(0, 4);
 }
 
-function buildSuggestedOrder(games: GameCandidate[]) {
+function buildSuggestedOrder(games: GameCandidate[], playerCount: number) {
   if (games.length === 0) {
     return ["Add compatible games and at least one player preference submission to get a play plan."];
   }
 
   const [first, second, third] = games;
-  if (first.playingTime >= 150) {
+  if (estimatePlayTime(first, playerCount) >= 150) {
     return [`Make ${first.title} the main event.`, second ? `Keep ${second.title} as the backup if time collapses.` : ""].filter(
       Boolean,
     );
   }
 
-  if (first.playingTime <= 45 && second) {
+  if (estimatePlayTime(first, playerCount) <= 45 && second) {
     return [`Open with ${first.title} as a quick table-setter.`, `Then play ${second.title} as the main game.`];
   }
 

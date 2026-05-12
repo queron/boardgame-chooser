@@ -11,6 +11,7 @@ export const gameCandidateInputSchema = z.object({
   year: z.number().int().optional(),
   minPlayers: z.number().int().min(1).max(99),
   maxPlayers: z.number().int().min(1).max(99),
+  playTimeMode: z.enum(["fixed", "range", "perPlayer"]).default("fixed"),
   playingTime: z.number().int().min(1).max(600),
   minPlayTime: z.number().int().min(1).max(600).optional(),
   maxPlayTime: z.number().int().min(1).max(600).optional(),
@@ -22,6 +23,12 @@ export const gameCandidateInputSchema = z.object({
 }).refine((game) => game.maxPlayers >= game.minPlayers, {
   message: "Maximum players must be greater than or equal to minimum players.",
   path: ["maxPlayers"],
+}).refine((game) => game.playTimeMode !== "range" || (game.minPlayTime && game.maxPlayTime), {
+  message: "Range play time needs both a minimum and maximum.",
+  path: ["maxPlayTime"],
+}).refine((game) => game.playTimeMode !== "range" || !game.minPlayTime || !game.maxPlayTime || game.maxPlayTime >= game.minPlayTime, {
+  message: "Maximum play time must be greater than or equal to minimum play time.",
+  path: ["maxPlayTime"],
 });
 
 export const submissionSchema = z.object({

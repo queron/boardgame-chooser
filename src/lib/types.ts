@@ -1,6 +1,7 @@
 export type NightStatus = "open" | "locked";
 
 export type CompetitionPreference = "competitive" | "cooperative" | "either";
+export type PlayTimeMode = "fixed" | "range" | "perPlayer";
 
 export type GameNight = {
   slug: string;
@@ -25,6 +26,7 @@ export type GameCandidate = {
   year?: number;
   minPlayers: number;
   maxPlayers: number;
+  playTimeMode?: PlayTimeMode;
   playingTime: number;
   minPlayTime?: number;
   maxPlayTime?: number;
@@ -76,6 +78,7 @@ export type BggSearchResult = {
 export type BggGameDetails = BggSearchResult & {
   minPlayers: number;
   maxPlayers: number;
+  playTimeMode?: PlayTimeMode;
   playingTime: number;
   minPlayTime?: number;
   maxPlayTime?: number;

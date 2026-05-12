@@ -115,6 +115,7 @@ export async function addSubmission(
       ...game,
       id: crypto.randomUUID(),
       submittedBy: participantId,
+      playTimeMode: game.playTimeMode ?? "fixed",
       categories: game.categories ?? [],
       mechanics: game.mechanics ?? [],
     })),

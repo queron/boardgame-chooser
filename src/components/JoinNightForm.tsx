@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { BggGameDetails, BggSearchResult, CompetitionPreference } from "@/lib/types";
+import { estimatePlayTime, formatMinutes, formatPlayTime } from "@/lib/playtime";
+import type { BggGameDetails, BggSearchResult, CompetitionPreference, PlayTimeMode } from "@/lib/types";
 
 type GameDraft = {
   title: string;
@@ -10,7 +11,10 @@ type GameDraft = {
   year?: number;
   minPlayers: number;
   maxPlayers: number;
+  playTimeMode: PlayTimeMode;
   playingTime: number;
+  minPlayTime?: number;
+  maxPlayTime?: number;
   weight?: number;
   categories: string[];
   mechanics: string[];
@@ -102,6 +106,7 @@ const emptyGame = (): GameDraft => ({
   title: "",
   minPlayers: 1,
   maxPlayers: 4,
+  playTimeMode: "fixed",
   playingTime: 90,
   categories: [],
   mechanics: [],
@@ -255,8 +260,8 @@ export function JoinNightForm({ slug }: { slug: string }) {
             <div className="grid gap-3 sm:grid-cols-3">
               <NumberField label="Min players" value={game.minPlayers} onChange={(value) => updateGame(index, { minPlayers: value })} />
               <NumberField label="Max players" value={game.maxPlayers} onChange={(value) => updateGame(index, { maxPlayers: value })} />
-              <NumberField label="Minutes" value={game.playingTime} onChange={(value) => updateGame(index, { playingTime: value })} />
             </div>
+            <PlayTimeFields game={game} onChange={(patch) => updateGame(index, patch)} />
             {game.maxPlayers < game.minPlayers ? (
               <p className="rounded-md bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
                 Maximum players must be greater than or equal to minimum players.
@@ -378,7 +383,7 @@ export function JoinNightForm({ slug }: { slug: string }) {
 }
 
 function fromBgg(game: BggGameDetails): GameDraft {
-  return { ...game, manualOverrides: false };
+  return { ...game, playTimeMode: game.playTimeMode ?? "fixed", manualOverrides: false };
 }
 
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
@@ -400,6 +405,85 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
           Close
         </button>
       </div>
+    </div>
+  );
+}
+
+function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch: Partial<GameDraft>) => void }) {
+  function setMode(playTimeMode: PlayTimeMode) {
+    if (playTimeMode === "range") {
+      const minPlayTime = game.minPlayTime ?? game.playingTime;
+      const maxPlayTime = game.maxPlayTime ?? game.playingTime;
+      onChange({
+        playTimeMode,
+        minPlayTime,
+        maxPlayTime,
+        playingTime: Math.round((minPlayTime + maxPlayTime) / 2),
+      });
+      return;
+    }
+
+    onChange({ playTimeMode, minPlayTime: undefined, maxPlayTime: undefined });
+  }
+
+  function setRangeMin(minPlayTime: number) {
+    const maxPlayTime = Math.max(minPlayTime, game.maxPlayTime ?? minPlayTime);
+    onChange({
+      minPlayTime,
+      maxPlayTime,
+      playingTime: Math.round((minPlayTime + maxPlayTime) / 2),
+    });
+  }
+
+  function setRangeMax(maxPlayTime: number) {
+    const minPlayTime = Math.min(game.minPlayTime ?? maxPlayTime, maxPlayTime);
+    onChange({
+      minPlayTime,
+      maxPlayTime,
+      playingTime: Math.round((minPlayTime + maxPlayTime) / 2),
+    });
+  }
+
+  return (
+    <div className="grid gap-3 rounded-md border border-stone-200 bg-stone-50 p-3">
+      <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
+        <label className="grid gap-2 text-sm font-medium text-stone-800">
+          Play time style
+          <select
+            value={game.playTimeMode}
+            onChange={(event) => setMode(event.target.value as PlayTimeMode)}
+            className="h-11 rounded-md border border-stone-300 bg-white px-3 text-base outline-none focus:border-emerald-600"
+          >
+            <option value="fixed">Fixed total</option>
+            <option value="range">Range</option>
+            <option value="perPlayer">Minutes per player</option>
+          </select>
+        </label>
+
+        {game.playTimeMode === "range" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <NumberField
+              label="Minimum minutes"
+              value={game.minPlayTime ?? game.playingTime}
+              onChange={setRangeMin}
+            />
+            <NumberField
+              label="Maximum minutes"
+              value={game.maxPlayTime ?? game.playingTime}
+              onChange={setRangeMax}
+            />
+          </div>
+        ) : (
+          <NumberField
+            label={game.playTimeMode === "perPlayer" ? "Minutes per player" : "Total minutes"}
+            value={game.playingTime}
+            onChange={(playingTime) => onChange({ playingTime })}
+          />
+        )}
+      </div>
+      <p className="text-xs font-medium text-stone-600">
+        Shown as {formatPlayTime(game)}. Recommendation estimate: {formatMinutes(estimatePlayTime(game))}.
+      </p>
     </div>
   );
 }
@@ -576,11 +660,4 @@ function indicatorClass(checked: boolean, shape: "checkbox" | "radio") {
 function selectedCount(themes: string[], tones: string[]) {
   const count = themes.length + tones.length;
   return count === 1 ? "1 theme/mood pick" : `${count} theme/mood picks`;
-}
-
-function formatMinutes(minutes: number) {
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }

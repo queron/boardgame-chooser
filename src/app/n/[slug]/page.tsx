@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { ShareActions } from "@/components/ShareActions";
+import { formatPlayTime } from "@/lib/playtime";
 import { recommendGames } from "@/lib/recommendation";
 import { getNight } from "@/lib/store";
 
@@ -64,7 +65,7 @@ export default async function NightDashboard({ params }: { params: Promise<{ slu
                     <article key={game.id} className="rounded-md border border-stone-200 p-3">
                       <h3 className="font-semibold text-stone-950">{game.title}</h3>
                       <p className="mt-1 text-xs text-stone-600">
-                        {game.minPlayers}-{game.maxPlayers} players · {game.playingTime} min · brought by{" "}
+                        {game.minPlayers}-{game.maxPlayers} players · {formatPlayTime(game)} · brought by{" "}
                         {submitterName.get(game.submittedBy) ?? "someone"}
                       </p>
                     </article>
