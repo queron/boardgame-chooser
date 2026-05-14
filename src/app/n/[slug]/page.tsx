@@ -60,6 +60,13 @@ export default async function NightDashboard({ params }: { params: Promise<{ slu
                 </Link>
               }
             >
+              <div className="mb-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                <p className="font-semibold">Step 2: Bring some games with you</p>
+                <p className="mt-1 leading-5">
+                  Add any games available for the night, plus expansions if you are bringing them.
+                </p>
+              </div>
+
               {night.games.length === 0 ? (
                 <EmptyState text="The pool is empty. Attendees can optionally add games they are bringing." />
               ) : (
@@ -67,7 +74,10 @@ export default async function NightDashboard({ params }: { params: Promise<{ slu
                   {night.games.map((game) => (
                     <article key={game.id} className="rounded-md border border-stone-200 p-3">
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className="font-semibold text-stone-950">{game.title}</h3>
+                        <h3 className="inline-flex items-center gap-2 font-semibold text-stone-950">
+                          <BoardGameIcon />
+                          {game.title}
+                        </h3>
                         <Link
                           href={`/n/${slug}/games?gameId=${game.id}`}
                           className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs font-semibold text-stone-800 hover:bg-stone-100"
@@ -128,4 +138,27 @@ function Panel({
 
 function EmptyState({ text }: { text: string }) {
   return <p className="rounded-md bg-stone-50 p-3 text-sm text-stone-600">{text}</p>;
+}
+
+function BoardGameIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="size-4 shrink-0 text-stone-500"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+    >
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 8h2" />
+      <path d="M14 8h2" />
+      <path d="M8 12h2" />
+      <path d="M14 12h2" />
+      <path d="M8 16h2" />
+      <path d="M14 16h2" />
+    </svg>
+  );
 }

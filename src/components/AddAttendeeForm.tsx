@@ -2,18 +2,18 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 
 export function AddAttendeeForm({ slug }: { slug: string }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setError("");
 
     const response = await fetch(`/api/nights/${slug}/attendees`, {
       method: "POST",
@@ -23,7 +23,7 @@ export function AddAttendeeForm({ slug }: { slug: string }) {
     const payload = await response.json();
 
     if (!response.ok) {
-      setError(payload.error ?? "Could not add attendee.");
+      showToast(payload.error ?? "Could not add attendee.");
       setIsSubmitting(false);
       return;
     }
@@ -57,7 +57,6 @@ export function AddAttendeeForm({ slug }: { slug: string }) {
           required
         />
       </label>
-      {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
       <div className="grid gap-2 sm:grid-cols-2">
         <button
           disabled={isSubmitting}
@@ -69,7 +68,6 @@ export function AddAttendeeForm({ slug }: { slug: string }) {
           type="button"
           onClick={() => {
             setDisplayName("");
-            setError("");
             setIsOpen(false);
           }}
           className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"

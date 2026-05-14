@@ -2,18 +2,18 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 
 export function CreateNightForm({ framed = true }: { framed?: boolean }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [title, setTitle] = useState("Next board game night");
   const [eventDate, setEventDate] = useState("");
-  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setError("");
 
     const response = await fetch("/api/nights", {
       method: "POST",
@@ -23,13 +23,13 @@ export function CreateNightForm({ framed = true }: { framed?: boolean }) {
     const payload = await parseJsonResponse(response);
 
     if (!response.ok) {
-      setError(payload.error ?? "Could not create a game night.");
+      showToast(payload.error ?? "Could not create a game night.");
       setIsSubmitting(false);
       return;
     }
 
     if (!payload.night?.slug) {
-      setError("The server created an unreadable game night response.");
+      showToast("The server created an unreadable game night response.");
       setIsSubmitting(false);
       return;
     }
@@ -63,7 +63,6 @@ export function CreateNightForm({ framed = true }: { framed?: boolean }) {
           className="h-11 rounded-md border border-stone-300 px-3 text-base outline-none focus:border-emerald-600"
         />
       </label>
-      {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
       <button
         disabled={isSubmitting}
         className="h-11 rounded-md bg-emerald-700 px-4 font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-400"

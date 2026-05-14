@@ -13,17 +13,26 @@ const bggExpansionSchema = z.object({
   year: z.number().int().optional(),
 });
 
+const optionalPositiveInteger = (max: number) =>
+  z.preprocess(
+    (value) => (typeof value === "number" && value < 1 ? undefined : value),
+    z.number().int().min(1).max(max).optional(),
+  );
+
 export const gameCandidateInputSchema = z.object({
-  bggId: z.number().int().positive().optional(),
+  bggId: optionalPositiveInteger(Number.MAX_SAFE_INTEGER),
   title: z.string().trim().min(1).max(120),
   year: z.number().int().optional(),
   minPlayers: z.number().int().min(1).max(99),
   maxPlayers: z.number().int().min(1).max(99),
   playTimeMode: z.enum(["fixed", "range", "perPlayer"]).default("fixed"),
   playingTime: z.number().int().min(1).max(600),
-  minPlayTime: z.number().int().min(1).max(600).optional(),
-  maxPlayTime: z.number().int().min(1).max(600).optional(),
-  weight: z.number().min(1).max(5).optional(),
+  minPlayTime: optionalPositiveInteger(600),
+  maxPlayTime: optionalPositiveInteger(600),
+  weight: z.preprocess(
+    (value) => (typeof value === "number" && value < 1 ? undefined : value),
+    z.number().min(1).max(5).optional(),
+  ),
   categories: z.array(z.string()).default([]),
   mechanics: z.array(z.string()).default([]),
   expansions: z.array(bggExpansionSchema).default([]),

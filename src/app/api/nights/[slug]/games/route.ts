@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const parsed = gamesSubmissionSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Check the games, then try again." },
+        { error: "Check the game details, then try again. Player counts and play times need positive numbers." },
         { status: 400 },
       );
     }

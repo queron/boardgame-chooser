@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 import { estimatePlayTime, formatMinutes, formatPlayTime } from "@/lib/playtime";
 import type {
   BggExpansion,
@@ -114,6 +115,7 @@ export function JoinNightForm({
   mode?: JoinMode;
 }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const slug = initialNight.slug;
   const participants = initialNight.participants;
   const initialParticipant = participants.find((participant) => participant.id === initialParticipantId);
@@ -138,8 +140,6 @@ export function JoinNightForm({
   const [searches, setSearches] = useState<Record<number, BggSearchResult[]>>({});
   const [searchingIndexes, setSearchingIndexes] = useState<Record<number, boolean>>({});
   const [bggEnabled, setBggEnabled] = useState<boolean | null>(null);
-  const [error, setError] = useState("");
-  const [toast, setToast] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -157,15 +157,14 @@ export function JoinNightForm({
 
     if (!response.ok) {
       setBggEnabled(false);
-      setError("");
-      setToast(payload.error ?? "BoardGameGeek search is unavailable. Manual entry still works.");
+      showToast(payload.error ?? "BoardGameGeek search is unavailable. Manual entry still works.", {
+        title: "BoardGameGeek lookup needs attention",
+      });
       return;
     }
 
-    setError("");
-    setToast("");
     setSearches((current) => ({ ...current, [index]: payload.results ?? [] }));
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     if (!bggEnabled || !bringGames || mode === "vibe") return;
@@ -203,10 +202,11 @@ export function JoinNightForm({
     const response = await fetch(`/api/bgg/thing?id=${result.bggId}`);
     const payload = await response.json();
     if (!response.ok) {
-      showToast(payload.error ?? "Could not fetch game details.");
+      showToast(payload.error ?? "Could not fetch game details.", {
+        title: "BoardGameGeek lookup needs attention",
+      });
       return;
     }
-    setToast("");
     updateGame(index, fromBgg(payload.game));
     setSearches((current) => ({ ...current, [index]: [] }));
   }
@@ -214,7 +214,6 @@ export function JoinNightForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setError("");
 
     const validGames = mode !== "vibe" && bringGames ? games.filter((game) => game.title.trim()) : [];
     const invalidGame = validGames.find((game) => game.maxPlayers < game.minPlayers);
@@ -223,6 +222,7 @@ export function JoinNightForm({
       setIsSubmitting(false);
       return;
     }
+    const submissionGames = validGames.map(toSubmissionGame);
 
     const endpoint =
       mode === "vibe"
@@ -239,12 +239,12 @@ export function JoinNightForm({
           }
         : mode === "games"
           ? {
-              games: validGames,
+              games: submissionGames,
             }
           : {
               participantId: selectedParticipantId || undefined,
               displayName,
-              games: validGames,
+              games: submissionGames,
               preference: { challenge, interaction, competition, themes: [], tones, maxPlayTime },
             };
 
@@ -256,7 +256,7 @@ export function JoinNightForm({
     const payload = await response.json();
 
     if (!response.ok) {
-      setError(payload.error ?? "Could not save your submission.");
+      showToast(payload.error ?? "Could not save your submission.");
       setIsSubmitting(false);
       return;
     }
@@ -316,7 +316,6 @@ export function JoinNightForm({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-8">
-      <Toast message={toast} onClose={() => setToast("")} />
       {mode !== "vibe" && mode !== "games" ? <section className="grid gap-4 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-stone-950">Who is setting a vibe?</h2>
         {participants.length > 0 ? (
@@ -555,7 +554,6 @@ export function JoinNightForm({
         ) : null}
       </section> : null}
 
-      {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
       <button
         disabled={isSubmitting}
         className="h-12 rounded-md bg-emerald-700 px-4 font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-stone-400"
@@ -582,16 +580,37 @@ export function JoinNightForm({
     });
   }
 
-  function showToast(message: string) {
-    setError("");
-    setToast(message);
-  }
+}
+
+function toSubmissionGame(game: GameDraft): Omit<GameCandidate, "id" | "submittedBy"> {
+  return {
+    ...(game.bggId && game.bggId > 0 ? { bggId: game.bggId } : {}),
+    title: game.title,
+    ...(game.year ? { year: game.year } : {}),
+    minPlayers: game.minPlayers,
+    maxPlayers: game.maxPlayers,
+    playTimeMode: game.playTimeMode,
+    playingTime: game.playingTime > 0 ? game.playingTime : 90,
+    ...(game.playTimeMode === "range" && game.minPlayTime && game.maxPlayTime
+      ? { minPlayTime: game.minPlayTime, maxPlayTime: game.maxPlayTime }
+      : {}),
+    ...(game.weight && game.weight >= 1 ? { weight: game.weight } : {}),
+    categories: game.categories,
+    mechanics: game.mechanics,
+    expansions: game.expansions.filter((expansion) => expansion.bggId > 0),
+    ...(game.imageUrl ? { imageUrl: game.imageUrl } : {}),
+    manualOverrides: game.manualOverrides,
+  };
 }
 
 function fromBgg(game: BggGameDetails): GameDraft {
   return {
     ...game,
     playTimeMode: game.playTimeMode ?? "fixed",
+    playingTime: game.playingTime > 0 ? game.playingTime : 90,
+    minPlayTime: game.minPlayTime && game.minPlayTime > 0 ? game.minPlayTime : undefined,
+    maxPlayTime: game.maxPlayTime && game.maxPlayTime > 0 ? game.maxPlayTime : undefined,
+    weight: game.weight && game.weight >= 1 ? game.weight : undefined,
     expansions: [],
     expansionOptions: game.expansions ?? [],
     manualOverrides: false,
@@ -627,29 +646,6 @@ function normalizeCompetition(value: PreferenceSubmission["competition"] | undef
 function mergeExpansions(selected: BggExpansion[], available: BggExpansion[]) {
   return Array.from([...selected, ...available].reduce((map, expansion) => map.set(expansion.bggId, expansion), new Map<number, BggExpansion>()).values()).sort(
     (a, b) => a.title.localeCompare(b.title),
-  );
-}
-
-function Toast({ message, onClose }: { message: string; onClose: () => void }) {
-  if (!message) return null;
-
-  return (
-    <div className="fixed inset-x-4 top-4 z-50 mx-auto max-w-xl" role="alert" aria-live="assertive">
-      <div className="flex items-start justify-between gap-4 rounded-lg border border-rose-200 bg-white p-4 text-sm text-rose-950 shadow-lg">
-        <div>
-          <p className="font-semibold">BoardGameGeek lookup needs attention</p>
-          <p className="mt-1 leading-6">{message}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-2 py-1 text-sm font-semibold text-rose-800 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-600 focus:ring-offset-2"
-          aria-label="Dismiss notification"
-        >
-          Close
-        </button>
-      </div>
-    </div>
   );
 }
 

@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const parsed = preferenceSubmissionSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Check the attendee and vibe, then try again." },
+        { error: "Check the attendee and vibe details, then try again." },
         { status: 400 },
       );
     }

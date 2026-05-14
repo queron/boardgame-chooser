@@ -2,20 +2,20 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ToastProvider";
 import type { GameNightRecord } from "@/lib/types";
 
 export function NightDetailsEditor({ night }: { night: GameNightRecord }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(night.title);
   const [eventDate, setEventDate] = useState(toDateTimeInput(night.eventDate));
-  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setError("");
 
     const response = await fetch(`/api/nights/${night.slug}`, {
       method: "PATCH",
@@ -25,7 +25,7 @@ export function NightDetailsEditor({ night }: { night: GameNightRecord }) {
     const payload = await response.json();
 
     if (!response.ok) {
-      setError(payload.error ?? "Could not update the night.");
+      showToast(payload.error ?? "Could not update the night.");
       setIsSubmitting(false);
       return;
     }
@@ -38,7 +38,6 @@ export function NightDetailsEditor({ night }: { night: GameNightRecord }) {
   function cancel() {
     setTitle(night.title);
     setEventDate(toDateTimeInput(night.eventDate));
-    setError("");
     setIsEditing(false);
   }
 
@@ -65,7 +64,6 @@ export function NightDetailsEditor({ night }: { night: GameNightRecord }) {
             />
           </label>
         </div>
-        {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
         <div className="flex flex-wrap gap-2">
           <button
             disabled={isSubmitting}

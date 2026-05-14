@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const parsed = submissionSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Check your games and preferences, then try again." },
+        { error: "Check your attendee, game, and vibe details, then try again." },
         { status: 400 },
       );
     }

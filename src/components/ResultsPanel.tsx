@@ -63,9 +63,9 @@ export function ResultsPanel({ recommendation }: { recommendation: Recommendatio
         ))}
       </div>
 
-      <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
-        <h3 className="font-semibold text-sky-950">Suggested play order</h3>
-        <ol className="mt-2 grid gap-1 text-sm text-sky-950">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+        <h3 className="font-semibold text-emerald-950">Suggested play order</h3>
+        <ol className="mt-2 grid gap-1 text-sm text-emerald-950">
           {recommendation.suggestedOrder.map((step) => (
             <li key={step}>{step}</li>
           ))}

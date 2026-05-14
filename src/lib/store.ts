@@ -110,6 +110,31 @@ export async function updateNightDetails(slug: string, input: { title: string; e
   return savedNight;
 }
 
+export async function deleteNight(slug: string) {
+  if (supabaseConfigured()) {
+    const night = await getNight(slug);
+    if (!night) return false;
+
+    const { error } = await supabase().from("game_nights").delete().eq("slug", slug);
+    if (error) throw new Error(error.message);
+    return true;
+  }
+
+  if (productionRequiresSupabase()) {
+    throw new Error(
+      "Production persistence is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel and run supabase/schema.sql.",
+    );
+  }
+
+  const nights = await readLocalNights();
+  if (!nights[slug]) return false;
+
+  delete nights[slug];
+  await fs.mkdir(path.dirname(localStorePath), { recursive: true });
+  await fs.writeFile(localStorePath, JSON.stringify(nights, null, 2));
+  return true;
+}
+
 export async function addAttendee(slug: string, input: { displayName: string }) {
   const night = await getNight(slug);
   if (!night) return null;
