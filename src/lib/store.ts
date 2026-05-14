@@ -175,6 +175,7 @@ export async function addSubmission(
       playTimeMode: game.playTimeMode ?? "fixed",
       categories: game.categories ?? [],
       mechanics: game.mechanics ?? [],
+      expansions: game.expansions ?? [],
     })),
   ];
   night.preferences = [
@@ -222,6 +223,7 @@ export async function saveGames(
     playTimeMode: game.playTimeMode ?? "fixed",
     categories: game.categories ?? [],
     mechanics: game.mechanics ?? [],
+    expansions: game.expansions ?? [],
   }));
 
   const savedNight = await saveNight(night);

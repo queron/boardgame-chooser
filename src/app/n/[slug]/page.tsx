@@ -78,6 +78,11 @@ export default async function NightDashboard({ params }: { params: Promise<{ slu
                       <p className="mt-1 text-xs text-stone-600">
                         {game.minPlayers}-{game.maxPlayers} players | {formatPlayTime(game)}
                       </p>
+                      {game.expansions?.length ? (
+                        <p className="mt-2 text-xs text-stone-600">
+                          Expansions: {game.expansions.map((expansion) => expansion.title).join(", ")}
+                        </p>
+                      ) : null}
                     </article>
                   ))}
                 </div>

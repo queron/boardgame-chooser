@@ -6,12 +6,30 @@ const parser = new XMLParser({
   attributeNamePrefix: "",
 });
 
+type BggXmlSearchData = {
+  items?: {
+    item?: BggXmlNode | BggXmlNode[];
+  };
+};
+
+type BggXmlNode = Record<string, unknown>;
+
 export async function searchBgg(query: string): Promise<BggSearchResult[]> {
+  const [exactData, broadData] = await Promise.all([fetchSearch(query, true), fetchSearch(query, false)]);
+  const results = [...parseSearchResults(exactData), ...parseSearchResults(broadData)];
+  return Array.from(new Map(results.map((result) => [result.bggId, result])).values()).slice(0, 8);
+}
+
+async function fetchSearch(query: string, exact: boolean) {
   const url = new URL("https://boardgamegeek.com/xmlapi2/search");
   url.searchParams.set("query", query);
   url.searchParams.set("type", "boardgame");
+  if (exact) url.searchParams.set("exact", "1");
 
-  const data = await fetchXml(url);
+  return fetchXml(url);
+}
+
+function parseSearchResults(data: BggXmlSearchData): BggSearchResult[] {
   return asArray(data.items?.item)
     .slice(0, 8)
     .map((item) => ({
@@ -52,8 +70,23 @@ export async function getBggGame(id: number): Promise<BggGameDetails | null> {
     weight: pollAverage ? Number(Number(pollAverage).toFixed(2)) : undefined,
     categories: links.filter((link) => link.type === "boardgamecategory").map((link) => link.value),
     mechanics: links.filter((link) => link.type === "boardgamemechanic").map((link) => link.value),
+    expansions: expansionLinks(links),
     imageUrl: typeof item.image === "string" ? item.image : undefined,
   };
+}
+
+function expansionLinks(links: Record<string, unknown>[]) {
+  const expansions = links
+    .filter((link) => link.type === "boardgameexpansion")
+    .map((link) => ({
+      bggId: Number(link.id),
+      title: typeof link.value === "string" ? link.value : "Untitled expansion",
+    }))
+    .filter((link) => Number.isFinite(link.bggId));
+
+  return Array.from(new Map(expansions.map((expansion) => [expansion.bggId, expansion])).values()).sort((a, b) =>
+    a.title.localeCompare(b.title),
+  );
 }
 
 async function fetchXml(url: URL) {

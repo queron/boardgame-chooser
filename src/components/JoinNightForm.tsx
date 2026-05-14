@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { estimatePlayTime, formatMinutes, formatPlayTime } from "@/lib/playtime";
 import type {
+  BggExpansion,
   BggGameDetails,
   BggSearchResult,
   CompetitionPreference,
@@ -28,6 +29,8 @@ type GameDraft = {
   weight?: number;
   categories: string[];
   mechanics: string[];
+  expansions: BggExpansion[];
+  expansionOptions: BggExpansion[];
   imageUrl?: string;
   manualOverrides: boolean;
 };
@@ -94,6 +97,8 @@ const emptyGame = (): GameDraft => ({
   playingTime: 90,
   categories: [],
   mechanics: [],
+  expansions: [],
+  expansionOptions: [],
   manualOverrides: true,
 });
 
@@ -175,6 +180,24 @@ export function JoinNightForm({
 
     return () => window.clearTimeout(timer);
   }, [bggEnabled, bringGames, games, mode, search]);
+
+  useEffect(() => {
+    if (!bggEnabled || mode !== "games") return;
+
+    games.forEach((game, index) => {
+      if (!game.bggId || game.expansionOptions.length > game.expansions.length) return;
+      void fetch(`/api/bgg/thing?id=${game.bggId}`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload) => {
+          if (!payload?.game?.expansions?.length) return;
+          updateGame(index, {
+            expansionOptions: mergeExpansions(game.expansions, payload.game.expansions),
+            manualOverrides: game.manualOverrides,
+          });
+        })
+        .catch(() => undefined);
+    });
+  }, [bggEnabled, games, mode]);
 
   async function selectBggGame(index: number, result: BggSearchResult) {
     const response = await fetch(`/api/bgg/thing?id=${result.bggId}`);
@@ -477,6 +500,17 @@ export function JoinNightForm({
                     Maximum players must be greater than or equal to minimum players.
                   </p>
                 ) : null}
+                {game.expansionOptions.length > 0 ? (
+                  <ExpansionPicker
+                    options={game.expansionOptions}
+                    selected={game.expansions}
+                    onChange={(expansions) => updateGame(index, { expansions })}
+                  />
+                ) : game.bggId ? (
+                  <p className="rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600">
+                    No BGG expansions were found for this title.
+                  </p>
+                ) : null}
                 <details className="rounded-md border border-stone-200 bg-stone-50 p-3">
                   <summary className="cursor-pointer text-sm font-semibold text-stone-900">
                     BGG metadata and scoring details
@@ -555,7 +589,13 @@ export function JoinNightForm({
 }
 
 function fromBgg(game: BggGameDetails): GameDraft {
-  return { ...game, playTimeMode: game.playTimeMode ?? "fixed", manualOverrides: false };
+  return {
+    ...game,
+    playTimeMode: game.playTimeMode ?? "fixed",
+    expansions: [],
+    expansionOptions: game.expansions ?? [],
+    manualOverrides: false,
+  };
 }
 
 function fromExistingGame(game: GameCandidate): GameDraft {
@@ -564,10 +604,17 @@ function fromExistingGame(game: GameCandidate): GameDraft {
       ...game,
       playTimeMode: "fixed",
       playingTime: estimatePlayTime(game),
+      expansions: game.expansions ?? [],
+      expansionOptions: game.expansions ?? [],
     };
   }
 
-  return { ...game, playTimeMode: game.playTimeMode ?? "fixed" };
+  return {
+    ...game,
+    playTimeMode: game.playTimeMode ?? "fixed",
+    expansions: game.expansions ?? [],
+    expansionOptions: game.expansions ?? [],
+  };
 }
 
 function normalizeCompetition(value: PreferenceSubmission["competition"] | undefined): CompetitionPreference {
@@ -575,6 +622,12 @@ function normalizeCompetition(value: PreferenceSubmission["competition"] | undef
   if (value === "cooperative") return 1;
   if (value === "competitive") return 5;
   return 3;
+}
+
+function mergeExpansions(selected: BggExpansion[], available: BggExpansion[]) {
+  return Array.from([...selected, ...available].reduce((map, expansion) => map.set(expansion.bggId, expansion), new Map<number, BggExpansion>()).values()).sort(
+    (a, b) => a.title.localeCompare(b.title),
+  );
 }
 
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
@@ -694,6 +747,79 @@ function PlayTimeFields({ game, onChange }: { game: GameDraft; onChange: (patch:
         Shown as {formatPlayTime(game)}. Recommendation estimate: {formatMinutes(estimatePlayTime(game))}.
       </p>
     </div>
+  );
+}
+
+function ExpansionPicker({
+  options,
+  selected,
+  onChange,
+}: {
+  options: BggExpansion[];
+  selected: BggExpansion[];
+  onChange: (value: BggExpansion[]) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const selectedIds = new Set(selected.map((expansion) => expansion.bggId));
+  const visibleOptions = options.filter((expansion) =>
+    expansion.title.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()),
+  );
+
+  function toggle(expansion: BggExpansion) {
+    onChange(
+      selectedIds.has(expansion.bggId)
+        ? selected.filter((item) => item.bggId !== expansion.bggId)
+        : [...selected, expansion].sort((a, b) => a.title.localeCompare(b.title)),
+    );
+  }
+
+  return (
+    <section className="grid gap-3 rounded-md border border-stone-200 bg-stone-50 p-3">
+      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+        <div>
+          <h3 className="text-sm font-semibold text-stone-900">Expansions</h3>
+          <p className="mt-1 text-xs text-stone-600">Select any expansions available for this game tonight.</p>
+        </div>
+        <span className="text-xs font-medium text-stone-500">
+          {selected.length} selected
+        </span>
+      </div>
+      {options.length > 8 ? (
+        <label className="grid gap-1 text-sm font-medium text-stone-800">
+          Filter expansions
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            className="h-10 rounded-md border border-stone-300 bg-white px-3 text-base outline-none focus:border-emerald-600"
+          />
+        </label>
+      ) : null}
+      <div className="grid max-h-64 gap-2 overflow-auto pr-1 sm:grid-cols-2">
+        {visibleOptions.map((expansion) => {
+          const checked = selectedIds.has(expansion.bggId);
+          return (
+            <label
+              key={expansion.bggId}
+              className={[
+                "flex min-h-12 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm text-stone-900",
+                checked ? "border-emerald-700 bg-emerald-50" : "border-stone-200 bg-white hover:border-emerald-500",
+              ].join(" ")}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(expansion)}
+                className="size-4 accent-emerald-700"
+              />
+              <span className="min-w-0">
+                <span className="block font-semibold">{expansion.title}</span>
+                {expansion.year ? <span className="text-xs text-stone-500">{expansion.year}</span> : null}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

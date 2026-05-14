@@ -7,6 +7,12 @@ export const createNightSchema = z.object({
 
 export const updateNightSchema = createNightSchema;
 
+const bggExpansionSchema = z.object({
+  bggId: z.number().int().positive(),
+  title: z.string().trim().min(1).max(160),
+  year: z.number().int().optional(),
+});
+
 export const gameCandidateInputSchema = z.object({
   bggId: z.number().int().positive().optional(),
   title: z.string().trim().min(1).max(120),
@@ -20,6 +26,7 @@ export const gameCandidateInputSchema = z.object({
   weight: z.number().min(1).max(5).optional(),
   categories: z.array(z.string()).default([]),
   mechanics: z.array(z.string()).default([]),
+  expansions: z.array(bggExpansionSchema).default([]),
   imageUrl: z.string().url().optional(),
   manualOverrides: z.boolean().default(false),
 }).refine((game) => game.maxPlayers >= game.minPlayers, {

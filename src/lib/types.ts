@@ -34,6 +34,7 @@ export type GameCandidate = {
   weight?: number;
   categories: string[];
   mechanics: string[];
+  expansions: BggExpansion[];
   imageUrl?: string;
   submittedBy?: string;
   manualOverrides: boolean;
@@ -78,6 +79,8 @@ export type BggSearchResult = {
   year?: number;
 };
 
+export type BggExpansion = BggSearchResult;
+
 export type BggGameDetails = BggSearchResult & {
   minPlayers: number;
   maxPlayers: number;
@@ -88,5 +91,6 @@ export type BggGameDetails = BggSearchResult & {
   weight?: number;
   categories: string[];
   mechanics: string[];
+  expansions: BggExpansion[];
   imageUrl?: string;
 };
