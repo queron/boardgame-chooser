@@ -5,6 +5,8 @@ export const createNightSchema = z.object({
   eventDate: z.string().optional(),
 });
 
+export const updateNightSchema = createNightSchema;
+
 export const gameCandidateInputSchema = z.object({
   bggId: z.number().int().positive().optional(),
   title: z.string().trim().min(1).max(120),
@@ -31,16 +33,42 @@ export const gameCandidateInputSchema = z.object({
   path: ["maxPlayTime"],
 });
 
-export const submissionSchema = z.object({
+const competitionPreferenceSchema = z.union([
+  z.number().int().min(1).max(5),
+  z.enum(["cooperative", "either", "competitive"]).transform((value) => {
+    if (value === "cooperative") return 1;
+    if (value === "competitive") return 5;
+    return 3;
+  }),
+]);
+
+const preferenceInputSchema = z.object({
+  challenge: z.number().int().min(1).max(5),
+  interaction: z.number().int().min(1).max(5),
+  competition: competitionPreferenceSchema,
+  themes: z.array(z.string()).max(10).default([]),
+  tones: z.array(z.string()).max(6),
+  maxPlayTime: z.number().int().min(30).max(360),
+});
+
+const participantInputSchema = z.object({
   participantId: z.string().uuid().optional(),
   displayName: z.string().trim().min(1).max(60),
+});
+
+export const submissionSchema = participantInputSchema.extend({
+  games: z.array(gameCandidateInputSchema).max(5).default([]),
+  preference: preferenceInputSchema,
+});
+
+export const preferenceSubmissionSchema = participantInputSchema.extend({
+  preference: preferenceInputSchema,
+});
+
+export const gamesSubmissionSchema = z.object({
   games: z.array(gameCandidateInputSchema).min(1).max(5),
-  preference: z.object({
-    challenge: z.number().int().min(1).max(5),
-    interaction: z.number().int().min(1).max(5),
-    competition: z.enum(["competitive", "cooperative", "either"]),
-    themes: z.array(z.string()).max(10),
-    tones: z.array(z.string()).max(6),
-    maxPlayTime: z.number().int().min(30).max(360),
-  }),
+});
+
+export const attendeeInputSchema = z.object({
+  displayName: z.string().trim().min(1).max(60),
 });

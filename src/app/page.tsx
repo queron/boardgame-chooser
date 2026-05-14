@@ -1,6 +1,11 @@
-import { CreateNightForm } from "@/components/CreateNightForm";
+import { NightPlannerTabs } from "@/components/NightPlannerTabs";
+import { listNights } from "@/lib/store";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const nights = await listNights();
+
   return (
     <main className="min-h-screen bg-stone-50">
       <section className="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-10 px-5 py-10 lg:grid-cols-[1.1fr_0.9fr]">
@@ -19,7 +24,7 @@ export default function Home() {
             <div className="border-l-4 border-amber-500 pl-3">Ranked play plan</div>
           </div>
         </div>
-        <CreateNightForm />
+        <NightPlannerTabs nights={nights} />
       </section>
     </main>
   );

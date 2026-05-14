@@ -2,55 +2,15 @@ import type {
   CompetitionPreference,
   GameCandidate,
   GameNightRecord,
+  LegacyCompetitionPreference,
   PreferenceSubmission,
   Recommendation,
 } from "./types";
 import { estimatePlayTime } from "./playtime";
 
-const THEME_KEYWORDS: Record<string, string[]> = {
-  adventure: ["adventure", "exploration", "maze", "travel"],
-  fantasy: ["fantasy", "mythology", "myth", "medieval", "arabian"],
-  sciFi: ["science fiction", "video game theme", "electronic"],
-  space: ["space exploration", "space", "science fiction"],
-  pirate: ["pirates", "nautical", "exploration"],
-  horror: ["horror", "zombies", "murder", "mystery", "mafia", "spies", "secret agents"],
-  ancient: ["ancient", "medieval", "renaissance", "mythology", "religious"],
-  modernHistory: [
-    "historical",
-    "age of reason",
-    "american west",
-    "napoleonic",
-    "post-napoleonic",
-    "pike and shot",
-    "world war i",
-    "world war ii",
-    "vietnam war",
-    "modern warfare",
-  ],
-  civilization: ["civilization", "territory building", "political", "city building"],
-  economic: ["economic", "industry", "manufacturing", "negotiation", "political"],
-  cityBuilding: ["city building", "territory building", "environmental"],
-  trainsTransport: ["trains", "transportation", "travel", "aviation", "flight"],
-  nature: ["animals", "environmental", "farming", "medical", "prehistoric"],
-  wargame: [
-    "wargame",
-    "civil war",
-    "american civil war",
-    "american revolutionary war",
-    "korean war",
-    "napoleonic",
-    "world war i",
-    "world war ii",
-    "modern warfare",
-  ],
-  party: ["party game", "humor", "bluffing", "trivia", "word game", "music"],
-  puzzle: ["puzzle", "abstract strategy", "abstract", "deduction", "math", "memory", "number"],
-  racingSports: ["racing", "sports", "real-time", "action", "dexterity"],
-  popCulture: ["movies", "tv", "radio theme", "comic book", "strip", "novel-based", "video game theme"],
-};
-
 const COOP_WORDS = ["cooperative game", "solo / solitaire game"];
 const COMPETITIVE_WORDS = ["area majority", "auction", "betting", "economic", "fighting", "negotiation"];
+const MAX_SCORE = 101;
 
 export function recommendGames(night: GameNightRecord): Recommendation {
   const playerCount = night.participants.length;
@@ -72,9 +32,16 @@ export function recommendGames(night: GameNightRecord): Recommendation {
 
   return {
     playerCount,
+    maxScore: MAX_SCORE,
     rankedGames,
     exclusions,
     suggestedOrder: buildSuggestedOrder(rankedGames.map((ranked) => ranked.game), playerCount),
+    explanation: [
+      "Player count is a hard compatibility check against each game minimum and maximum.",
+      "Play time is scored against the group average maximum using BGG duration or duration range.",
+      "Challenge maps to BGG average weight when available.",
+      "Interaction, cooperative-to-competitive feel, and mood are inferred from BGG categories and mechanics.",
+    ],
     generatedAt: new Date().toISOString(),
   };
 }
@@ -89,29 +56,24 @@ function summarizePreferences(preferences: PreferenceSubmission[]) {
       challenge: 3,
       interaction: 3,
       maxPlayTime: 180,
-      competition: "either" as CompetitionPreference,
+      competition: 3 as CompetitionPreference,
       themes: [] as string[],
       tones: [] as string[],
     };
   }
 
-  const count = preferences.length;
   const challenge = average(preferences.map((pref) => pref.challenge));
   const interaction = average(preferences.map((pref) => pref.interaction));
   const maxPlayTime = Math.max(30, Math.round(average(preferences.map((pref) => pref.maxPlayTime))));
-  const themes = mostCommon(preferences.flatMap((pref) => pref.themes));
   const tones = mostCommon(preferences.flatMap((pref) => pref.tones));
-  const cooperativeVotes = preferences.filter((pref) => pref.competition === "cooperative").length;
-  const competitiveVotes = preferences.filter((pref) => pref.competition === "competitive").length;
-  const competition: CompetitionPreference =
-    cooperativeVotes > count / 2 ? "cooperative" : competitiveVotes > count / 2 ? "competitive" : "either";
+  const competition = Math.round(average(preferences.map((pref) => normalizeCompetition(pref.competition)))) as CompetitionPreference;
 
   return {
     challenge,
     interaction,
     maxPlayTime,
     competition,
-    themes,
+    themes: [] as string[],
     tones,
   };
 }
@@ -130,7 +92,6 @@ function scoreGame(
     challengeFit: clamp(20 - Math.abs((game.weight ?? targetWeight) - targetWeight) * 6, 0, 20),
     interactionFit: scoreInteraction(tagText, averages.interaction),
     competitionFit: scoreCompetition(tagText, averages.competition),
-    themeFit: scoreThemes(tagText, averages.themes),
     toneFit: scoreTones(game, tagText, averages.tones, playerCount),
   };
 
@@ -150,17 +111,10 @@ function scoreInteraction(tagText: string, target: number) {
 }
 
 function scoreCompetition(tagText: string, preference: CompetitionPreference) {
-  if (preference === "either") return 10;
   const isCooperative = COOP_WORDS.some((word) => tagText.includes(word));
   const isCompetitive = COMPETITIVE_WORDS.some((word) => tagText.includes(word)) || !isCooperative;
-  if (preference === "cooperative") return isCooperative ? 10 : 4;
-  return isCompetitive ? 10 : 5;
-}
-
-function scoreThemes(tagText: string, themes: string[]) {
-  if (themes.length === 0) return 8;
-  const hits = themes.filter((theme) => THEME_KEYWORDS[theme]?.some((word) => tagText.includes(word)));
-  return clamp(4 + hits.length * 5, 0, 14);
+  const gameCompetitionLevel = isCooperative && !isCompetitive ? 1 : isCompetitive && !isCooperative ? 5 : 3;
+  return clamp(10 - Math.abs(gameCompetitionLevel - preference) * 2.5, 0, 10);
 }
 
 function scoreTones(game: GameCandidate, tagText: string, tones: string[], playerCount: number) {
@@ -184,10 +138,17 @@ function buildReasons(
   if (scoreBreakdown.playerFit >= 20) reasons.push(`Fits the current ${submissionCount || "open"} player count.`);
   if (scoreBreakdown.timeFit >= 18) reasons.push(`Fits inside the ${averages.maxPlayTime} minute time appetite.`);
   if (scoreBreakdown.challengeFit >= 15) reasons.push(`Its complexity lines up with the requested challenge level.`);
-  if (scoreBreakdown.themeFit >= 9) reasons.push(`Its tags match the group theme appetite.`);
+  if (scoreBreakdown.competitionFit >= 8) reasons.push(`Its cooperative/competitive feel matches the group preference.`);
   if (scoreBreakdown.toneFit >= 8) reasons.push(`It has the right night energy for the submitted mood.`);
   if (reasons.length === 0) reasons.push(`${game.title} is compatible, but the match is a compromise.`);
   return reasons.slice(0, 4);
+}
+
+function normalizeCompetition(value: CompetitionPreference | LegacyCompetitionPreference) {
+  if (typeof value === "number") return value;
+  if (value === "cooperative") return 1;
+  if (value === "competitive") return 5;
+  return 3;
 }
 
 function buildSuggestedOrder(games: GameCandidate[], playerCount: number) {

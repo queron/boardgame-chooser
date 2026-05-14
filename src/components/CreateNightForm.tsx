@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function CreateNightForm() {
+export function CreateNightForm({ framed = true }: { framed?: boolean }) {
   const router = useRouter();
   const [title, setTitle] = useState("Next board game night");
   const [eventDate, setEventDate] = useState("");
@@ -38,7 +38,13 @@ export function CreateNightForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-5 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+    <form
+      onSubmit={onSubmit}
+      className={[
+        "grid gap-5",
+        framed ? "rounded-lg border border-stone-200 bg-white p-5 shadow-sm" : "",
+      ].join(" ")}
+    >
       <label className="grid gap-2 text-sm font-medium text-stone-800">
         Night name
         <input
