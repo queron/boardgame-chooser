@@ -37,31 +37,48 @@ export function ResultsPanel({ recommendation }: { recommendation: Recommendatio
                     <h3 className="text-xl font-semibold text-stone-950">{ranked.game.title}</h3>
                   </div>
                   <span className="rounded-md bg-stone-900 px-3 py-1 text-sm font-semibold text-white">
-                    {ranked.score}/115
+                    {ranked.score}/{recommendation.maxScore}
                   </span>
                 </div>
                 <p className="mt-2 text-sm text-stone-600">
-                  {ranked.game.minPlayers}-{ranked.game.maxPlayers} players · {formatPlayTime(ranked.game)}
-                  {ranked.game.weight ? ` · weight ${ranked.game.weight}` : ""}
+                  {ranked.game.minPlayers}-{ranked.game.maxPlayers} players | {formatPlayTime(ranked.game)}
+                  {ranked.game.weight ? ` | weight ${ranked.game.weight}` : ""}
                 </p>
                 <ul className="mt-3 grid gap-1 text-sm text-stone-700">
                   {ranked.reasons.map((reason) => (
                     <li key={reason}>{reason}</li>
                   ))}
                 </ul>
+                <dl className="mt-4 grid gap-2 text-xs text-stone-600 sm:grid-cols-2">
+                  {Object.entries(ranked.scoreBreakdown).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between gap-3 rounded-md bg-stone-50 px-2 py-1.5">
+                      <dt>{scoreLabel(key)}</dt>
+                      <dd className="font-semibold text-stone-900">{Math.round(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             </div>
           </article>
         ))}
       </div>
 
-      <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
-        <h3 className="font-semibold text-sky-950">Suggested play order</h3>
-        <ol className="mt-2 grid gap-1 text-sm text-sky-950">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+        <h3 className="font-semibold text-emerald-950">Suggested play order</h3>
+        <ol className="mt-2 grid gap-1 text-sm text-emerald-950">
           {recommendation.suggestedOrder.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ol>
+      </div>
+
+      <div className="rounded-lg border border-stone-200 bg-white p-4">
+        <h3 className="font-semibold text-stone-950">How the match is scored</h3>
+        <ul className="mt-2 grid gap-1 text-sm text-stone-700">
+          {recommendation.explanation.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
       </div>
 
       {recommendation.exclusions.length > 0 ? (
@@ -76,4 +93,16 @@ export function ResultsPanel({ recommendation }: { recommendation: Recommendatio
       ) : null}
     </section>
   );
+}
+
+function scoreLabel(key: string) {
+  const labels: Record<string, string> = {
+    playerFit: "Player count",
+    timeFit: "Play time",
+    challengeFit: "Challenge",
+    interactionFit: "Interaction",
+    competitionFit: "Co-op/competitive",
+    toneFit: "Mood",
+  };
+  return labels[key] ?? key;
 }

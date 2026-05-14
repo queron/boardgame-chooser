@@ -5,15 +5,15 @@ import { getNight } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export default async function JoinNightPage({
+export default async function GamesPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ participantId?: string; gameId?: string }>;
+  searchParams: Promise<{ gameId?: string }>;
 }) {
   const { slug } = await params;
-  const { participantId, gameId } = await searchParams;
+  const { gameId } = await searchParams;
   const night = await getNight(slug);
   if (!night) notFound();
 
@@ -24,17 +24,12 @@ export default async function JoinNightPage({
           <Link href={`/n/${slug}`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">
             Back to dashboard
           </Link>
-          <h1 className="mt-2 text-3xl font-semibold text-stone-950">Join {night.title}</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-stone-950">Add games being brought</h1>
           <p className="mt-2 max-w-2xl text-stone-600">
-            Confirm who is attending, describe tonight&apos;s vibe, and optionally add the games you are bringing.
-            BGG lookup fills the catalog details; you can correct anything before submitting.
+            Add the titles available for this night.
           </p>
         </header>
-        <JoinNightForm initialNight={night} initialParticipantId={participantId} initialGameId={gameId} />
-        <footer className="text-xs leading-5 text-stone-500">
-          Board game metadata is retrieved from BoardGameGeek&apos;s XML API. BGG content and trademarks belong to
-          their respective owners.
-        </footer>
+        <JoinNightForm initialNight={night} initialGameId={gameId} mode="games" />
       </div>
     </main>
   );

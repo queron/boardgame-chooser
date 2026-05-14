@@ -23,12 +23,6 @@ export function ShareActions({ slug }: { slug: string }) {
       >
         {copied ? "Copied" : "Copy invite link"}
       </button>
-      <a
-        href={`/n/${slug}/join`}
-        className="inline-flex h-10 items-center rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800"
-      >
-        Add my games
-      </a>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 export type NightStatus = "open" | "locked";
 
-export type CompetitionPreference = "competitive" | "cooperative" | "either";
+export type CompetitionPreference = number;
+export type LegacyCompetitionPreference = "competitive" | "cooperative" | "either";
 export type PlayTimeMode = "fixed" | "range" | "perPlayer";
 
 export type GameNight = {
@@ -33,8 +34,9 @@ export type GameCandidate = {
   weight?: number;
   categories: string[];
   mechanics: string[];
+  expansions: BggExpansion[];
   imageUrl?: string;
-  submittedBy: string;
+  submittedBy?: string;
   manualOverrides: boolean;
 };
 
@@ -42,7 +44,7 @@ export type PreferenceSubmission = {
   participantId: string;
   challenge: number;
   interaction: number;
-  competition: CompetitionPreference;
+  competition: CompetitionPreference | LegacyCompetitionPreference;
   themes: string[];
   tones: string[];
   maxPlayTime: number;
@@ -63,9 +65,11 @@ export type RankedGame = {
 
 export type Recommendation = {
   playerCount: number;
+  maxScore: number;
   rankedGames: RankedGame[];
   exclusions: { game: GameCandidate; reason: string }[];
   suggestedOrder: string[];
+  explanation: string[];
   generatedAt: string;
 };
 
@@ -74,6 +78,8 @@ export type BggSearchResult = {
   title: string;
   year?: number;
 };
+
+export type BggExpansion = BggSearchResult;
 
 export type BggGameDetails = BggSearchResult & {
   minPlayers: number;
@@ -85,5 +91,6 @@ export type BggGameDetails = BggSearchResult & {
   weight?: number;
   categories: string[];
   mechanics: string[];
+  expansions: BggExpansion[];
   imageUrl?: string;
 };

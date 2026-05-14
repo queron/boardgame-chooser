@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { createNightSchema } from "@/lib/schemas";
-import { createNight } from "@/lib/store";
+import { createNight, listNights } from "@/lib/store";
+
+export async function GET() {
+  try {
+    const nights = await listNights();
+    return NextResponse.json({ nights });
+  } catch (error) {
+    console.error("Failed to list game nights", error);
+    return NextResponse.json({ error: "Could not load game nights." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
