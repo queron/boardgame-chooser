@@ -612,7 +612,7 @@ export function JoinNightForm({
 
             <button
               type="button"
-              onClick={() => setGames((current) => [...current, emptyGame()].slice(0, 5))}
+              onClick={() => setGames((current) => [...current, emptyGame()])}
               className="h-10 justify-self-start rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-50"
             >
               Add another game

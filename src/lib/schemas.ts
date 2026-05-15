@@ -104,7 +104,7 @@ const participantInputSchema = z.object({
 });
 
 export const submissionSchema = participantInputSchema.extend({
-  games: z.array(gameCandidateInputSchema).max(5).default([]),
+  games: z.array(gameCandidateInputSchema).default([]),
   preference: preferenceInputSchema,
 });
 
@@ -113,7 +113,7 @@ export const preferenceSubmissionSchema = participantInputSchema.extend({
 });
 
 export const gamesSubmissionSchema = z.object({
-  games: z.array(gameCandidateInputSchema).min(1).max(5),
+  games: z.array(gameCandidateInputSchema).min(1),
 });
 
 export const attendeeInputSchema = z.object({
