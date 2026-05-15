@@ -28,7 +28,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
             Add another submission
           </Link>
         </header>
-        <ResultsPanel recommendation={recommendGames(night)} />
+        <ResultsPanel recommendation={recommendGames(night)} night={night} />
       </div>
     </main>
   );

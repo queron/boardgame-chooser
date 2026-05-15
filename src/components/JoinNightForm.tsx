@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { dynamicThemeOptions } from "@/lib/game-features";
 import { estimatePlayTime, formatMinutes, formatPlayTime } from "@/lib/playtime";
 import type {
   BggExpansion,
@@ -11,9 +12,12 @@ import type {
   CompetitionPreference,
   GameCandidate,
   GameNightRecord,
+  HardAvoid,
+  LearnedPreferenceProfile,
   Participant,
   PlayTimeMode,
   PreferenceSubmission,
+  TimeFlexibility,
 } from "@/lib/types";
 
 type GameDraft = {
@@ -33,6 +37,12 @@ type GameDraft = {
   expansions: BggExpansion[];
   expansionOptions: BggExpansion[];
   imageUrl?: string;
+  bggAverageRating?: number;
+  bggBayesAverage?: number;
+  bggUsersRated?: number;
+  bggWeightVotes?: number;
+  bggRank?: number;
+  metadataConfidence?: number;
   manualOverrides: boolean;
 };
 
@@ -79,11 +89,22 @@ const gameMechanicOptions: ChoiceOption[] = [
 ];
 
 const toneOptions: ChoiceOption[] = [
-  { value: "casual", label: "Casual", description: "Low pressure, easy rhythm." },
-  { value: "banter", label: "Banter", description: "Table talk and interaction." },
-  { value: "crunchy", label: "Crunchy", description: "Dense choices and planning." },
+  { value: "casual", label: "Relaxed", description: "Low pressure, easy rhythm." },
+  { value: "banter", label: "Talky", description: "Table talk and interaction." },
+  { value: "crunchy", label: "Strategic", description: "Dense choices and planning." },
   { value: "cinematic", label: "Cinematic", description: "Story moments and big swings." },
   { value: "chaotic", label: "Chaotic", description: "Surprises, dice, volatility." },
+  { value: "tactical", label: "Tactical", description: "Positioning and confrontation." },
+  { value: "cooperative", label: "Cooperative", description: "Shared puzzle-solving." },
+];
+
+const hardAvoidOptions: ChoiceOption[] = [
+  { value: "take_that", label: "Take-that", description: "Targeted interference." },
+  { value: "heavy_teach", label: "Heavy teach", description: "Long or dense rules explanation." },
+  { value: "direct_conflict", label: "Direct conflict", description: "Combat or repeated attacks." },
+  { value: "bluffing", label: "Bluffing", description: "Deception and hidden intent." },
+  { value: "coop", label: "Co-op", description: "Everyone against the game." },
+  { value: "downtime", label: "Long downtime", description: "Waiting around between turns." },
 ];
 
 const challengeScale = ["Featherweight", "Easygoing", "Balanced", "Thinky", "Brain-burning"];
@@ -135,8 +156,20 @@ export function JoinNightForm({
   const [challenge, setChallenge] = useState(initialPreference?.challenge ?? 3);
   const [interaction, setInteraction] = useState(initialPreference?.interaction ?? 3);
   const [competition, setCompetition] = useState<CompetitionPreference>(normalizeCompetition(initialPreference?.competition));
+  const [themes, setThemes] = useState<string[]>(initialPreference?.themes ?? []);
   const [tones, setTones] = useState<string[]>(initialPreference?.tones ?? []);
   const [maxPlayTime, setMaxPlayTime] = useState(initialPreference?.maxPlayTime ?? 180);
+  const [timeFlexibility, setTimeFlexibility] = useState<TimeFlexibility>(initialPreference?.timeFlexibility ?? "flexible");
+  const [hardAvoids, setHardAvoids] = useState<HardAvoid[]>(initialPreference?.hardAvoids ?? []);
+  const [learnedProfile] = useState<LearnedPreferenceProfile | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    try {
+      const saved = window.localStorage.getItem("boardgame-chooser:learnedProfile");
+      return saved ? (JSON.parse(saved) as LearnedPreferenceProfile) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
   const [searches, setSearches] = useState<Record<number, BggSearchResult[]>>({});
   const [searchingIndexes, setSearchingIndexes] = useState<Record<number, boolean>>({});
   const [bggEnabled, setBggEnabled] = useState<boolean | null>(null);
@@ -230,12 +263,23 @@ export function JoinNightForm({
         : mode === "games"
           ? `/api/nights/${slug}/games`
           : `/api/nights/${slug}/submissions`;
+    const preference = {
+      challenge,
+      interaction,
+      competition,
+      themes,
+      tones,
+      maxPlayTime,
+      timeFlexibility,
+      hardAvoids,
+      ...(learnedProfile ? { learnedProfile } : {}),
+    };
     const body =
       mode === "vibe"
         ? {
             participantId: selectedParticipantId || undefined,
             displayName,
-            preference: { challenge, interaction, competition, themes: [], tones, maxPlayTime },
+            preference,
           }
         : mode === "games"
           ? {
@@ -245,7 +289,7 @@ export function JoinNightForm({
               participantId: selectedParticipantId || undefined,
               displayName,
               games: submissionGames,
-              preference: { challenge, interaction, competition, themes: [], tones, maxPlayTime },
+              preference,
             };
 
     const response = await fetch(endpoint, {
@@ -299,8 +343,11 @@ export function JoinNightForm({
     setChallenge(preference?.challenge ?? 3);
     setInteraction(preference?.interaction ?? 3);
     setCompetition(normalizeCompetition(preference?.competition));
+    setThemes(preference?.themes ?? []);
     setTones(preference?.tones ?? []);
     setMaxPlayTime(preference?.maxPlayTime ?? 180);
+    setTimeFlexibility(preference?.timeFlexibility ?? "flexible");
+    setHardAvoids(preference?.hardAvoids ?? []);
   }
 
   function setBringingGames(value: boolean) {
@@ -388,9 +435,9 @@ export function JoinNightForm({
           />
         </div>
 
-        <CheckboxGroup label="Mood" options={toneOptions} selected={tones} onChange={setTones} />
+        <CheckboxGroup label="Tonight should feel..." options={toneOptions} selected={tones} onChange={setTones} limit={2} />
         <Range
-          label="Maximum play time"
+          label="Maximum comfortable play time"
           value={maxPlayTime}
           onChange={setMaxPlayTime}
           min={30}
@@ -399,6 +446,26 @@ export function JoinNightForm({
           valueText={formatMinutes(maxPlayTime)}
           low="30m"
           high="6h"
+        />
+        <SegmentedControl
+          label="Time flexibility"
+          value={timeFlexibility}
+          options={[
+            { value: "strict", label: "Strict" },
+            { value: "flexible", label: "Flexible" },
+          ]}
+          onChange={(value) => setTimeFlexibility(value as TimeFlexibility)}
+        />
+        <CheckboxGroup
+          label="Hard avoids tonight"
+          options={hardAvoidOptions}
+          selected={hardAvoids}
+          onChange={(value) => setHardAvoids(value as HardAvoid[])}
+        />
+        <DynamicThemePicker
+          games={[...initialNight.games, ...games.map(draftToCandidatePreview)]}
+          selected={themes}
+          onChange={setThemes}
         />
       </section> : null}
 
@@ -545,7 +612,7 @@ export function JoinNightForm({
 
             <button
               type="button"
-              onClick={() => setGames((current) => [...current, emptyGame()].slice(0, 5))}
+              onClick={() => setGames((current) => [...current, emptyGame()])}
               className="h-10 justify-self-start rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-50"
             >
               Add another game
@@ -599,7 +666,20 @@ function toSubmissionGame(game: GameDraft): Omit<GameCandidate, "id" | "submitte
     mechanics: game.mechanics,
     expansions: game.expansions.filter((expansion) => expansion.bggId > 0),
     ...(game.imageUrl ? { imageUrl: game.imageUrl } : {}),
+    ...(game.bggAverageRating !== undefined ? { bggAverageRating: game.bggAverageRating } : {}),
+    ...(game.bggBayesAverage !== undefined ? { bggBayesAverage: game.bggBayesAverage } : {}),
+    ...(game.bggUsersRated !== undefined ? { bggUsersRated: game.bggUsersRated } : {}),
+    ...(game.bggWeightVotes !== undefined ? { bggWeightVotes: game.bggWeightVotes } : {}),
+    ...(game.bggRank !== undefined ? { bggRank: game.bggRank } : {}),
+    ...(game.metadataConfidence !== undefined ? { metadataConfidence: game.metadataConfidence } : {}),
     manualOverrides: game.manualOverrides,
+  };
+}
+
+function draftToCandidatePreview(game: GameDraft): GameCandidate {
+  return {
+    id: game.id ?? game.title,
+    ...toSubmissionGame({ ...game, title: game.title || "Untitled game" }),
   };
 }
 
@@ -910,14 +990,24 @@ function CheckboxGroup({
   options,
   selected,
   onChange,
+  limit,
 }: {
   label: string;
   options: ChoiceOption[];
   selected: string[];
   onChange: (value: string[]) => void;
+  limit?: number;
 }) {
   function toggle(value: string) {
-    onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
+    if (selected.includes(value)) {
+      onChange(selected.filter((item) => item !== value));
+      return;
+    }
+    if (limit && selected.length >= limit) {
+      onChange([...selected.slice(1), value]);
+      return;
+    }
+    onChange([...selected, value]);
   }
 
   return (
@@ -944,6 +1034,72 @@ function CheckboxGroup({
         })}
       </div>
     </fieldset>
+  );
+}
+
+function SegmentedControl({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="text-sm font-semibold text-stone-900">{label}</legend>
+      <div className="grid grid-cols-2 gap-1 rounded-md bg-stone-100 p-1">
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={[
+                "h-10 rounded px-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2",
+                active ? "bg-white text-stone-950 shadow-sm" : "text-stone-600 hover:text-stone-950",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+function DynamicThemePicker({
+  games,
+  selected,
+  onChange,
+}: {
+  games: GameCandidate[];
+  selected: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const options = dynamicThemeOptions(games)
+    .filter(Boolean)
+    .map((theme) => ({
+      value: theme,
+      label: theme,
+      description: "Present in the current game pool.",
+    }));
+
+  if (options.length === 0) return null;
+
+  return (
+    <CheckboxGroup
+      label="Themes you are especially up for"
+      options={options}
+      selected={selected.filter((theme) => options.some((option) => option.value === theme))}
+      onChange={onChange}
+      limit={3}
+    />
   );
 }
 

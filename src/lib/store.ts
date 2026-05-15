@@ -1,7 +1,16 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import type { GameCandidate, GameNightRecord, Participant, PreferenceSubmission } from "./types";
+import { buildGameFeatureVector } from "./game-features";
+import type {
+  FeedbackReason,
+  GameCandidate,
+  GameNightRecord,
+  LearnedPreferenceProfile,
+  Participant,
+  PostNightFeedback,
+  PreferenceSubmission,
+} from "./types";
 
 const localStorePath = path.join(process.cwd(), ".local-data", "game-nights.json");
 
@@ -33,6 +42,8 @@ export async function createNight(input: { title: string; eventDate?: string }) 
     participants: [],
     games: [],
     preferences: [],
+    feedback: [],
+    learnedProfiles: [],
   };
 
   await saveNight(night);
@@ -207,6 +218,7 @@ export async function addSubmission(
     ...night.preferences.filter((preference) => preference.participantId !== participantId),
     { ...input.preference, participantId },
   ];
+  rememberLearnedProfile(night, input.preference.learnedProfile, participantId);
 
   const savedNight = await saveNight(night);
   return { night: savedNight, participant };
@@ -228,6 +240,7 @@ export async function savePreference(
     ...night.preferences.filter((preference) => preference.participantId !== participant.id),
     { ...input.preference, participantId: participant.id },
   ];
+  rememberLearnedProfile(night, input.preference.learnedProfile, participant.id);
 
   const savedNight = await saveNight(night);
   return { night: savedNight, participant };
@@ -253,6 +266,42 @@ export async function saveGames(
 
   const savedNight = await saveNight(night);
   return { night: savedNight };
+}
+
+export async function addFeedback(
+  slug: string,
+  input: {
+    participantId?: string;
+    participantName?: string;
+    gameCandidateId: string;
+    wasPlayed: boolean;
+    enjoyment?: 1 | 2 | 3 | 4 | 5;
+    wouldPlayAgain?: boolean;
+    reasonTags?: FeedbackReason[];
+  },
+) {
+  const night = await getNight(slug);
+  if (!night) return null;
+
+  const feedback: PostNightFeedback = {
+    id: crypto.randomUUID(),
+    nightId: slug,
+    participantId: input.participantId,
+    participantName: input.participantName?.trim() || undefined,
+    gameCandidateId: input.gameCandidateId,
+    wasPlayed: input.wasPlayed,
+    enjoyment: input.enjoyment,
+    wouldPlayAgain: input.wouldPlayAgain,
+    reasonTags: input.reasonTags ?? [],
+    submittedAt: new Date().toISOString(),
+  };
+  night.feedback = [...(night.feedback ?? []), feedback];
+
+  const game = night.games.find((candidate) => candidate.id === input.gameCandidateId);
+  const learnedProfile = game ? updateLearnedProfile(night, feedback, game) : undefined;
+
+  const savedNight = await saveNight(night);
+  return { night: savedNight, feedback, learnedProfile };
 }
 
 function upsertParticipant(
@@ -284,6 +333,58 @@ function upsertParticipant(
 
 function normalizeName(value: string) {
   return value.trim().toLocaleLowerCase();
+}
+
+function rememberLearnedProfile(night: GameNightRecord, learnedProfile: LearnedPreferenceProfile | undefined, participantId: string) {
+  if (!learnedProfile) return;
+
+  const profile = { ...learnedProfile, participantKey: participantId };
+  night.learnedProfiles = [
+    ...(night.learnedProfiles ?? []).filter((item) => item.participantKey !== participantId),
+    profile,
+  ];
+}
+
+function updateLearnedProfile(night: GameNightRecord, feedback: PostNightFeedback, game: GameCandidate) {
+  const participantKey = feedback.participantId ?? (feedback.participantName ? normalizeName(feedback.participantName) : undefined);
+  if (!participantKey) return undefined;
+
+  const vector = buildGameFeatureVector(game, night.participants.length);
+  const existing = night.learnedProfiles?.find((profile) => profile.participantKey === participantKey);
+  const sentiment = feedback.wasPlayed
+    ? clamp(((feedback.enjoyment ?? 3) - 3) / 2 + (feedback.wouldPlayAgain === true ? 0.25 : feedback.wouldPlayAgain === false ? -0.25 : 0), -1, 1)
+    : -0.25;
+  const alpha = 0.22;
+  const now = new Date().toISOString();
+  const next: LearnedPreferenceProfile = {
+    participantKey,
+    complexityBias: nudge(existing?.complexityBias, sentiment * ((vector.complexity - 3) / 2), alpha),
+    interactionBias: nudge(existing?.interactionBias, sentiment * (vector.interaction - 0.5) * 2, alpha),
+    conflictTolerance: nudge(existing?.conflictTolerance, sentiment * (vector.conflict - 0.5) * 2, alpha),
+    cooperationAffinity: nudge(existing?.cooperationAffinity, sentiment * (vector.cooperation - 0.5) * 2, alpha),
+    randomnessAffinity: nudge(existing?.randomnessAffinity, sentiment * (vector.randomness - 0.5) * 2, alpha),
+    strategyAffinity: nudge(existing?.strategyAffinity, sentiment * (vector.strategy - 0.5) * 2, alpha),
+    narrativeAffinity: nudge(existing?.narrativeAffinity, sentiment * (vector.narrative - 0.5) * 2, alpha),
+    preferredDurationMinutes:
+      feedback.wasPlayed && feedback.enjoyment && feedback.enjoyment >= 4
+        ? Math.round((existing?.preferredDurationMinutes ?? vector.expectedMinutes) * (1 - alpha) + vector.expectedMinutes * alpha)
+        : existing?.preferredDurationMinutes,
+    updatedAt: now,
+  };
+
+  night.learnedProfiles = [
+    ...(night.learnedProfiles ?? []).filter((profile) => profile.participantKey !== participantKey),
+    next,
+  ];
+  return next;
+}
+
+function nudge(current = 0, signal: number, alpha: number) {
+  return Number(clamp(current * (1 - alpha) + signal * alpha, -1, 1).toFixed(3));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function newestDate(night: GameNightRecord) {

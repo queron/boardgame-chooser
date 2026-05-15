@@ -100,7 +100,7 @@ export default async function NightDashboard({ params }: { params: Promise<{ slu
             </Panel>
           </section>
 
-          <ResultsPanel recommendation={recommendation} />
+          <ResultsPanel recommendation={recommendation} night={night} />
         </div>
       </div>
     </main>

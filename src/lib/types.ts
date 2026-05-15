@@ -3,6 +3,21 @@ export type NightStatus = "open" | "locked";
 export type CompetitionPreference = number;
 export type LegacyCompetitionPreference = "competitive" | "cooperative" | "either";
 export type PlayTimeMode = "fixed" | "range" | "perPlayer";
+export type TimeFlexibility = "strict" | "flexible";
+export type HardAvoid =
+  | "take_that"
+  | "heavy_teach"
+  | "direct_conflict"
+  | "bluffing"
+  | "coop"
+  | "downtime";
+export type FeedbackReason =
+  | "too_long"
+  | "too_heavy"
+  | "not_interactive"
+  | "too_conflict_heavy"
+  | "great_fit"
+  | "wrong_player_count";
 
 export type GameNight = {
   slug: string;
@@ -36,8 +51,27 @@ export type GameCandidate = {
   mechanics: string[];
   expansions: BggExpansion[];
   imageUrl?: string;
+  bggAverageRating?: number;
+  bggBayesAverage?: number;
+  bggUsersRated?: number;
+  bggWeightVotes?: number;
+  bggRank?: number;
+  metadataConfidence?: number;
   submittedBy?: string;
   manualOverrides: boolean;
+};
+
+export type LearnedPreferenceProfile = {
+  participantKey: string;
+  complexityBias: number;
+  interactionBias: number;
+  conflictTolerance: number;
+  cooperationAffinity: number;
+  randomnessAffinity: number;
+  strategyAffinity: number;
+  narrativeAffinity: number;
+  preferredDurationMinutes?: number;
+  updatedAt: string;
 };
 
 export type PreferenceSubmission = {
@@ -48,12 +82,17 @@ export type PreferenceSubmission = {
   themes: string[];
   tones: string[];
   maxPlayTime: number;
+  timeFlexibility?: TimeFlexibility;
+  hardAvoids?: HardAvoid[];
+  learnedProfile?: LearnedPreferenceProfile;
 };
 
 export type GameNightRecord = GameNight & {
   participants: Participant[];
   games: GameCandidate[];
   preferences: PreferenceSubmission[];
+  feedback?: PostNightFeedback[];
+  learnedProfiles?: LearnedPreferenceProfile[];
 };
 
 export type RankedGame = {
@@ -61,6 +100,12 @@ export type RankedGame = {
   score: number;
   reasons: string[];
   scoreBreakdown: Record<string, number>;
+  participantScores?: {
+    participantId: string;
+    displayName: string;
+    score: number;
+    penalties: string[];
+  }[];
 };
 
 export type Recommendation = {
@@ -93,4 +138,42 @@ export type BggGameDetails = BggSearchResult & {
   mechanics: string[];
   expansions: BggExpansion[];
   imageUrl?: string;
+  bggAverageRating?: number;
+  bggBayesAverage?: number;
+  bggUsersRated?: number;
+  bggWeightVotes?: number;
+  bggRank?: number;
+  metadataConfidence?: number;
+};
+
+export type GameFeatureDimension =
+  | "interaction"
+  | "conflict"
+  | "cooperation"
+  | "randomness"
+  | "strategy"
+  | "narrative"
+  | "partyEnergy"
+  | "teachBurden";
+
+export type GameFeatureVector = Record<GameFeatureDimension, number> & {
+  expectedMinutes: number;
+  durationUncertainty: number;
+  complexity: number;
+  themeTags: string[];
+  confidence: number;
+  qualityPrior: number;
+};
+
+export type PostNightFeedback = {
+  id: string;
+  nightId: string;
+  participantId?: string;
+  participantName?: string;
+  gameCandidateId: string;
+  wasPlayed: boolean;
+  enjoyment?: 1 | 2 | 3 | 4 | 5;
+  wouldPlayAgain?: boolean;
+  reasonTags?: FeedbackReason[];
+  submittedAt: string;
 };
