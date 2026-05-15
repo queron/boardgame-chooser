@@ -1,7 +1,9 @@
+import { PostNightFeedbackPanel } from "@/components/PostNightFeedbackPanel";
 import type { Recommendation } from "@/lib/types";
+import type { GameNightRecord } from "@/lib/types";
 import { formatPlayTime } from "@/lib/playtime";
 
-export function ResultsPanel({ recommendation }: { recommendation: Recommendation }) {
+export function ResultsPanel({ recommendation, night }: { recommendation: Recommendation; night?: GameNightRecord }) {
   const hasResults = recommendation.rankedGames.length > 0;
 
   return (
@@ -91,6 +93,15 @@ export function ResultsPanel({ recommendation }: { recommendation: Recommendatio
           </ul>
         </div>
       ) : null}
+
+      {night ? (
+        <PostNightFeedbackPanel
+          slug={night.slug}
+          games={night.games}
+          participants={night.participants}
+          feedback={night.feedback ?? []}
+        />
+      ) : null}
     </section>
   );
 }
@@ -102,7 +113,10 @@ function scoreLabel(key: string) {
     challengeFit: "Challenge",
     interactionFit: "Interaction",
     competitionFit: "Co-op/competitive",
-    toneFit: "Mood",
+    moodFit: "Mood",
+    themeFit: "Theme",
+    confidenceFit: "Metadata",
+    penalty: "Avoid penalties",
   };
   return labels[key] ?? key;
 }

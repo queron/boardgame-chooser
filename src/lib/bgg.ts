@@ -1,4 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
+import { createClient } from "@supabase/supabase-js";
+import { calculateMetadataConfidence } from "./game-features";
 import type { BggGameDetails, BggSearchResult } from "./types";
 
 const parser = new XMLParser({
@@ -41,6 +43,9 @@ function parseSearchResults(data: BggXmlSearchData): BggSearchResult[] {
 }
 
 export async function getBggGame(id: number): Promise<BggGameDetails | null> {
+  const cached = await getCachedBggGame(id);
+  if (cached) return cached;
+
   const url = new URL("https://boardgamegeek.com/xmlapi2/thing");
   url.searchParams.set("id", String(id));
   url.searchParams.set("type", "boardgame");
@@ -51,14 +56,20 @@ export async function getBggGame(id: number): Promise<BggGameDetails | null> {
   if (!item) return null;
 
   const links = asArray(item.link);
-  const pollAverage = item.statistics?.ratings?.averageweight?.value;
+  const ratings = isXmlNode(item.statistics) && isXmlNode(item.statistics.ratings) ? item.statistics.ratings : {};
+  const pollAverage = ratings.averageweight?.value;
 
   const minPlayTime = positiveNumberFromNode(item.minplaytime);
   const maxPlayTime = positiveNumberFromNode(item.maxplaytime);
   const playingTime = positiveNumberFromNode(item.playingtime) ?? maxPlayTime ?? minPlayTime ?? 90;
   const weight = Number(pollAverage);
 
-  return {
+  const bggAverageRating = finiteNumber(ratings.average?.value);
+  const bggBayesAverage = finiteNumber(ratings.bayesaverage?.value);
+  const bggUsersRated = finiteNumber(ratings.usersrated?.value);
+  const bggWeightVotes = finiteNumber(ratings.numweights?.value);
+  const bggRank = parseBoardGameRank(ratings.ranks);
+  const game = {
     bggId: Number(item.id),
     title: valueFromNode(primaryName(item.name)) || "Untitled game",
     year: numberFromNode(item.yearpublished),
@@ -73,7 +84,19 @@ export async function getBggGame(id: number): Promise<BggGameDetails | null> {
     mechanics: linkValues(links, "boardgamemechanic"),
     expansions: expansionLinks(links),
     imageUrl: typeof item.image === "string" ? item.image : undefined,
+    ...(bggAverageRating !== undefined ? { bggAverageRating: Number(bggAverageRating.toFixed(2)) } : {}),
+    ...(bggBayesAverage !== undefined ? { bggBayesAverage: Number(bggBayesAverage.toFixed(2)) } : {}),
+    ...(bggUsersRated !== undefined ? { bggUsersRated: Math.round(bggUsersRated) } : {}),
+    ...(bggWeightVotes !== undefined ? { bggWeightVotes: Math.round(bggWeightVotes) } : {}),
+    ...(bggRank !== undefined ? { bggRank } : {}),
+  } satisfies BggGameDetails;
+
+  const gameWithConfidence = {
+    ...game,
+    metadataConfidence: calculateMetadataConfidence(game),
   };
+  await saveCachedBggGame(gameWithConfidence);
+  return gameWithConfidence;
 }
 
 function linkValues(links: Record<string, unknown>[], type: string) {
@@ -112,6 +135,49 @@ async function fetchXml(url: URL) {
   return parser.parse(await response.text());
 }
 
+function supabaseConfigured() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+function supabase() {
+  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+  });
+}
+
+async function getCachedBggGame(id: number) {
+  if (!supabaseConfigured()) return null;
+
+  try {
+    const { data, error } = await supabase()
+      .from("bgg_games_cache")
+      .select("normalized_json")
+      .eq("bgg_id", id)
+      .maybeSingle();
+    if (error || !data?.normalized_json) return null;
+    return data.normalized_json as BggGameDetails;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCachedBggGame(game: BggGameDetails) {
+  if (!supabaseConfigured()) return;
+
+  try {
+    await supabase().from("bgg_games_cache").upsert({
+      bgg_id: game.bggId,
+      title: game.title,
+      year: game.year ?? null,
+      normalized_json: game,
+      refreshed_at: new Date().toISOString(),
+      source_version: "algorithm-2.0",
+    });
+  } catch {
+    // Cache writes must not break the user-facing lookup flow.
+  }
+}
+
 function primaryName(name: unknown) {
   const names = asArray(name);
   return names.find((entry) => isXmlNode(entry) && entry.type === "primary") ?? names[0];
@@ -133,6 +199,19 @@ function numberFromNode(node: unknown) {
   if (!value) return undefined;
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
+}
+
+function finiteNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function parseBoardGameRank(ranks: unknown) {
+  if (!isXmlNode(ranks)) return undefined;
+  const rank = asArray(ranks.rank).find(
+    (entry) => isXmlNode(entry) && entry.name === "boardgame" && finiteNumber(entry.value) !== undefined,
+  );
+  return isXmlNode(rank) ? finiteNumber(rank.value) : undefined;
 }
 
 function positiveNumberFromNode(node: unknown) {

@@ -7,9 +7,9 @@ A lightweight shared board-game night picker for friends. Create a night, share 
 - Share-link access with no accounts.
 - BoardGameGeek XML API search and metadata import.
 - Manual correction for BGG player counts and play time.
-- Explainable scoring for player count, time, complexity, interaction, theme, and mood.
+- Explainable Algorithm 2.0 scoring with per-player fit, hard avoids, BGG-derived feature vectors, dynamic themes, and post-night feedback.
 - Dashboard, join flow, and results page.
-- Supabase-ready persistence with a local JSON fallback for development.
+- Supabase-ready persistence with a local JSON fallback for development and a Supabase BGG metadata cache in hosted environments.
 
 ## Run locally
 
@@ -22,10 +22,18 @@ Open http://localhost:3000.
 
 Without Supabase env vars, nights are stored in `.local-data/game-nights.json`.
 
+Run local checks with:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
 ## Supabase setup
 
 1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
+2. Run `supabase/schema.sql` in the SQL editor. Re-run it after Algorithm 2.0 updates to create the `bgg_games_cache` table.
 3. Add these environment variables to `.env.local` and Vercel:
 
 ```bash

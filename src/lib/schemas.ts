@@ -13,6 +13,28 @@ const bggExpansionSchema = z.object({
   year: z.number().int().optional(),
 });
 
+const hardAvoidSchema = z.enum(["take_that", "heavy_teach", "direct_conflict", "bluffing", "coop", "downtime"]);
+const feedbackReasonSchema = z.enum([
+  "too_long",
+  "too_heavy",
+  "not_interactive",
+  "too_conflict_heavy",
+  "great_fit",
+  "wrong_player_count",
+]);
+const learnedProfileSchema = z.object({
+  participantKey: z.string().trim().min(1).max(120),
+  complexityBias: z.number().min(-1).max(1).default(0),
+  interactionBias: z.number().min(-1).max(1).default(0),
+  conflictTolerance: z.number().min(-1).max(1).default(0),
+  cooperationAffinity: z.number().min(-1).max(1).default(0),
+  randomnessAffinity: z.number().min(-1).max(1).default(0),
+  strategyAffinity: z.number().min(-1).max(1).default(0),
+  narrativeAffinity: z.number().min(-1).max(1).default(0),
+  preferredDurationMinutes: z.number().int().min(30).max(600).optional(),
+  updatedAt: z.string(),
+});
+
 const optionalPositiveInteger = (max: number) =>
   z.preprocess(
     (value) => (typeof value === "number" && value < 1 ? undefined : value),
@@ -37,6 +59,12 @@ export const gameCandidateInputSchema = z.object({
   mechanics: z.array(z.string()).default([]),
   expansions: z.array(bggExpansionSchema).default([]),
   imageUrl: z.string().url().optional(),
+  bggAverageRating: z.number().min(0).max(10).optional(),
+  bggBayesAverage: z.number().min(0).max(10).optional(),
+  bggUsersRated: z.number().int().min(0).optional(),
+  bggWeightVotes: z.number().int().min(0).optional(),
+  bggRank: z.number().int().min(1).optional(),
+  metadataConfidence: z.number().min(0).max(1).optional(),
   manualOverrides: z.boolean().default(false),
 }).refine((game) => game.maxPlayers >= game.minPlayers, {
   message: "Maximum players must be greater than or equal to minimum players.",
@@ -65,6 +93,9 @@ const preferenceInputSchema = z.object({
   themes: z.array(z.string()).max(10).default([]),
   tones: z.array(z.string()).max(6),
   maxPlayTime: z.number().int().min(30).max(360),
+  timeFlexibility: z.enum(["strict", "flexible"]).default("flexible"),
+  hardAvoids: z.array(hardAvoidSchema).max(6).default([]),
+  learnedProfile: learnedProfileSchema.optional(),
 });
 
 const participantInputSchema = z.object({
@@ -87,4 +118,14 @@ export const gamesSubmissionSchema = z.object({
 
 export const attendeeInputSchema = z.object({
   displayName: z.string().trim().min(1).max(60),
+});
+
+export const feedbackSubmissionSchema = z.object({
+  participantId: z.string().uuid().optional(),
+  participantName: z.string().trim().max(60).optional(),
+  gameCandidateId: z.string().uuid(),
+  wasPlayed: z.boolean(),
+  enjoyment: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+  wouldPlayAgain: z.boolean().optional(),
+  reasonTags: z.array(feedbackReasonSchema).max(6).default([]),
 });
